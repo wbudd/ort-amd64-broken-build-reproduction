@@ -1,0 +1,15 @@
+{
+    "folders": [
+        {
+            "name": "ORT amd64 broken build reproduction",
+            "path": "."
+        }
+    ],
+    "settings": {
+        "editor.minimap.enabled": false,
+        "editor.rulers": [80],
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "C_Cpp.autoAddFileAssociations": false
+    }
+}
