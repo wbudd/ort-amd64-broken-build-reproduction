@@ -13,8 +13,8 @@ FROM public.ecr.aws/lambda/python:3.12       AS aws-lambda-python-x86_64
 FROM public.ecr.aws/lambda/python:3.12-arm64 AS aws-lambda-python-aarch64
 FROM aws-lambda-python-${platform}           AS ort-build
 
-ARG onnx_model_name
 ARG platform
+ARG onnx_model_name
 
 LABEL maintainer="Will Budd"
 
@@ -31,7 +31,6 @@ RUN dnf -y install \
         tar \
         wget \
         yasm \
-        zip \
         zlib-devel \
     && dnf -y clean all \
     && rm -rf /var/cache
