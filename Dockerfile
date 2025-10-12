@@ -4,6 +4,11 @@ ARG platform=x86_64
 # This should be the filename of the original ONNX model sans ".onnx" extension.
 ARG onnx_model_name=msg3d
 
+# The AMD-specific optimization bug demonstrated in this reproduction can be
+# avoided by setting this arg to true, which sets the ORT optimization level to
+# "extended" (instead of the default of "all") prior to model conversion.
+ARG amd_reduced_optimization_workaround=false
+
 ################################################################################
 ### Set up base AWS Lambda image ###############################################
 
@@ -15,6 +20,7 @@ FROM aws-lambda-python-${platform}           AS ort-build
 
 ARG platform
 ARG onnx_model_name
+ARG amd_reduced_optimization_workaround
 
 LABEL maintainer="Will Budd"
 
@@ -66,21 +72,29 @@ COPY ${onnx_model_name}.onnx /
 # > C: 24 kernel channels: 32 group: 1
 #
 # No problems on Intel though, so when running inference on an AMD machine,
-# it seems best to Docker build on an Intel machine, considering that the
-# result is the same X86-64 bytecode.
+# one option is to Docker build on an Intel machine, considering that the result
+# is (or should be) the same X86-64 bytecode.
 #
-# (And aarch64 to aarch64 seems fine too. E.g., M1 to Graviton2)
+# Another option is set the --build-arg amd_reduced_optimization_workaround=true
+# (see also top of this file). Doing so sets the ORT optimization level to
+# "extended" instead of the default of "all" prior to model conversion.
 
 RUN if [[ ${platform} == "aarch64" ]]; \
         then ort_platform=arm; \
         else ort_platform=amd64; \
+    fi; \
+    if [[ ${amd_reduced_optimization_workaround} == "true" ]]; \
+        then export ORT_CONVERT_ONNX_MODELS_TO_ORT_OPTIMIZATION_LEVEL=extended; \
+        else export ORT_CONVERT_ONNX_MODELS_TO_ORT_OPTIMIZATION_LEVEL=all; \
     fi; \
     python /onnxruntime/tools/python/convert_onnx_models_to_ort.py \
         --enable_type_reduction \
         --optimization_style Fixed \
         --save_optimized_onnx_model \
         --target_platform ${ort_platform} \
-        /${onnx_model_name}.onnx
+        /${onnx_model_name}.onnx \
+    && mv -v /${onnx_model_name}*.config /tmp/${onnx_model_name}.config \
+    && mv -v /${onnx_model_name}*.ort    /tmp/${onnx_model_name}.ort
 
 RUN cd onnxruntime \
     && ./build.sh \
@@ -92,8 +106,7 @@ RUN cd onnxruntime \
         --disable_ml_ops \
         --disable_rtti \
         --enable_reduced_operator_type_support \
-        --include_ops_by_config \
-            /${onnx_model_name}.required_operators_and_types.config \
+        --include_ops_by_config /tmp/${onnx_model_name}.config \
         --minimal_build \
         --skip_tests
 
@@ -153,7 +166,7 @@ ARG platform
 ARG onnx_model_name
 
 COPY --from=ort-build /tmp/test_inference /tmp/test/test_inference
-COPY --from=ort-build /${onnx_model_name}.ort /tmp/test/model.ort
+COPY --from=ort-build /tmp/${onnx_model_name}.ort /tmp/test/model.ort
 
 # Create the output ZIP even if test_inference fails (due to the "||").
 RUN /tmp/test/test_inference \

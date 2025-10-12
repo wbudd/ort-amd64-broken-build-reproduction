@@ -41,3 +41,11 @@ The inclusion of the following lines in the Docker build log output:
 [E:onnxruntime:, sequential_executor.cc:572 ExecuteKernel] Non-zero status code returned while running Conv node. Name:'/sgcn1/sgcn1.0/mlp/layers.2/Relu_output_0_nchwc' Status Message: Input channels C is not equal to kernel channels * group. C: 24 kernel channels: 32 group: 1
 ```
 And `#################### INFERENCE TEST FAILED #####################`.
+
+## Reduced optimization level workaround for AMD
+
+Setting the Docker `--build-arg amd_reduced_optimization_workaround=true` sets the ORT optimization level to `extended` instead of the default of `all` prior to model conversion. When this level is set to `extended`, the above error/bug no longer appears.
+
+```
+DOCKER_BUILDKIT=1 docker build -t ort-amd64-broken-build-reproduction:x86_64 --build-arg onnx_model_name=msg3d --build-arg platform=x86_64 --build-arg amd_reduced_optimization_workaround=true --force-rm --progress=plain --output . .
+```
